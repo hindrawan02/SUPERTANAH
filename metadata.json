@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Persuratan dan Disposisi Bidang Pertanahan",
+  "description": "Sistem Persuratan dan Disposisi Digital Bidang Pertanahan - Dinas Perumahan Rakyat dan Kawasan Permukiman Provinsi Jawa Tengah",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

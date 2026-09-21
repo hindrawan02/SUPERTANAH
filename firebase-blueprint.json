@@ -1,0 +1,174 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Akun pegawai dan administrator SIPERDITAN Disperakim Jateng",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nama": { "type": "string" },
+        "nip": { "type": "string" },
+        "jabatan": { "type": "string" },
+        "role": { "type": "string" },
+        "pokjaId": { "type": "string" },
+        "nomorWhatsapp": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "nama", "nip", "role"]
+    },
+    "Surat": {
+      "title": "Surat",
+      "description": "Naskah surat masuk dan disposisi Kepala Dinas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nomorAgenda": { "type": "string" },
+        "nomorSurat": { "type": "string" },
+        "asalSurat": { "type": "string" },
+        "perihal": { "type": "string" },
+        "tanggalSurat": { "type": "string" },
+        "kategori": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "nomorSurat", "perihal", "tanggalSurat"]
+    },
+    "SuratKeluar": {
+      "title": "SuratKeluar",
+      "description": "Nomor dan naskah surat keluar Bidang Pertanahan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nomorSurat": { "type": "string" },
+        "nomorUrut": { "type": "number" },
+        "tahun": { "type": "number" },
+        "perihal": { "type": "string" },
+        "tujuanSurat": { "type": "string" },
+        "tanggalSurat": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdById": { "type": "string" }
+      },
+      "required": ["id", "nomorSurat", "nomorUrut", "tahun", "perihal", "tujuanSurat", "tanggalSurat"]
+    },
+    "Disposisi": {
+      "title": "Disposisi",
+      "description": "Lembar disposisi berjenjang dari Kepala Bidang dan Ketua Pokja",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "suratId": { "type": "string" },
+        "dariJabatan": { "type": "string" },
+        "dariUserNama": { "type": "string" },
+        "kepadaJabatan": { "type": "string" },
+        "kepadaUserNama": { "type": "string" },
+        "narasi": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "suratId", "narasi", "status"]
+    },
+    "TindakLanjut": {
+      "title": "TindakLanjut",
+      "description": "Laporan tindak lanjut dan progres penanganan surat oleh staf",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "suratId": { "type": "string" },
+        "disposisiId": { "type": "string" },
+        "stafId": { "type": "string" },
+        "stafNama": { "type": "string" },
+        "catatan": { "type": "string" }
+      },
+      "required": ["id", "suratId", "stafId", "catatan"]
+    },
+    "MasukanStaf": {
+      "title": "MasukanStaf",
+      "description": "Telaah masukan dan rekomendasi staf",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "suratId": { "type": "string" },
+        "stafId": { "type": "string" },
+        "judulMasukan": { "type": "string" },
+        "isiMasukan": { "type": "string" }
+      },
+      "required": ["id", "suratId", "stafId", "judulMasukan"]
+    },
+    "LogAktivitas": {
+      "title": "LogAktivitas",
+      "description": "Log audit jejak aktivitas sistem persuratan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "userNama": { "type": "string" },
+        "aktivitas": { "type": "string" },
+        "keterangan": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "userNama", "aktivitas"]
+    },
+    "Notifikasi": {
+      "title": "Notifikasi",
+      "description": "Notifikasi internal kedinasan untuk pengguna",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "judul": { "type": "string" },
+        "pesan": { "type": "string" },
+        "statusBaca": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "judul", "pesan"]
+    },
+    "Pokja": {
+      "title": "Pokja",
+      "description": "Kelompok Kerja (Pokja) Teknis Bidang Pertanahan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nama": { "type": "string" },
+        "kode": { "type": "string" },
+        "deskripsi": { "type": "string" },
+        "ketuaId": { "type": "string" }
+      },
+      "required": ["id", "nama", "kode", "ketuaId"]
+    }
+  },
+  "firestore": {
+    "/pokjas/{pokjaId}": {
+      "schema": { "$ref": "#/entities/Pokja" },
+      "description": "Daftar kelompok kerja pokja bidang pertanahan"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Daftar pengguna dan pegawai"
+    },
+    "/surat/{suratId}": {
+      "schema": { "$ref": "#/entities/Surat" },
+      "description": "Daftar surat masuk dan disposisi"
+    },
+    "/surat_keluar/{suratKeluarId}": {
+      "schema": { "$ref": "#/entities/SuratKeluar" },
+      "description": "Daftar nomor surat keluar bidang pertanahan"
+    },
+    "/disposisi/{disposisiId}": {
+      "schema": { "$ref": "#/entities/Disposisi" },
+      "description": "Instruksi dan alur disposisi"
+    },
+    "/tindak_lanjut/{tindakLanjutId}": {
+      "schema": { "$ref": "#/entities/TindakLanjut" },
+      "description": "Catatan tindak lanjut staf"
+    },
+    "/masukan_staf/{masukanStafId}": {
+      "schema": { "$ref": "#/entities/MasukanStaf" },
+      "description": "Masukan dan telaah staf"
+    },
+    "/logs/{logId}": {
+      "schema": { "$ref": "#/entities/LogAktivitas" },
+      "description": "Jejak audit aktivitas sistem"
+    },
+    "/notifikasi/{notifikasiId}": {
+      "schema": { "$ref": "#/entities/Notifikasi" },
+      "description": "Notifikasi kedinasan"
+    }
+  }
+}

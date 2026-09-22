@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Safe area padding support for modern mobile devices (iPhone notch & navigation bar) */
+.safe-area-pb {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 @media print {
   @page {
     size: A4 portrait;

@@ -19,9 +19,12 @@ import {
   Trash2,
   ExternalLink,
   Folder,
+  Edit3,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatDateIndo, getStatusBadgeColor, calculateSlaStatus } from '../../utils/helpers';
 import { GOOGLE_DRIVE_FOLDER_URL } from '../../data/initialData';
+import { EditSuratModal } from './EditSuratModal';
 
 interface SuratListViewProps {
   onSelectSuratForDetail: (surat: Surat) => void;
@@ -29,6 +32,7 @@ interface SuratListViewProps {
   onOpenQr: (surat: Surat) => void;
   onOpenDisposisiModal: (surat: Surat) => void;
   onOpenLembarDisposisi?: (surat: Surat) => void;
+  onOpenEditSurat?: (surat: Surat) => void;
 }
 
 export const SuratListView: React.FC<SuratListViewProps> = ({
@@ -37,6 +41,7 @@ export const SuratListView: React.FC<SuratListViewProps> = ({
   onOpenQr,
   onOpenDisposisiModal,
   onOpenLembarDisposisi,
+  onOpenEditSurat,
 }) => {
   const {
     currentUser,
@@ -46,12 +51,40 @@ export const SuratListView: React.FC<SuratListViewProps> = ({
     disposisiList,
     arsipkanSurat,
     deleteSurat,
+    clearAllSuratAndDisposisi,
   } = useApp();
 
   const allVisibleSurat = getSuratVisibleForUser(currentUser);
 
   // Delete confirmation state (Req 3: Super Admin only)
   const [suratToDelete, setSuratToDelete] = useState<Surat | null>(null);
+
+  // Edit Surat state
+  const [suratToEdit, setSuratToEdit] = useState<Surat | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Clear all data state
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleStartEdit = (surat: Surat) => {
+    if (onOpenEditSurat) {
+      onOpenEditSurat(surat);
+    } else {
+      setSuratToEdit(surat);
+      setIsEditModalOpen(true);
+    }
+  };
+
+  const handleExecuteClear = async () => {
+    setIsClearing(true);
+    try {
+      await clearAllSuratAndDisposisi();
+      setShowClearConfirm(false);
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -160,20 +193,34 @@ export const SuratListView: React.FC<SuratListViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors self-start sm:self-auto ${
-            showAdvancedFilters
-              ? 'bg-blue-900 text-white border-blue-900'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-          }`}
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span>Filter Lanjutan</span>
-          <ChevronDown
-            className={`w-3.5 h-3.5 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}
-          />
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {(currentUser.role === 'super_admin' || currentUser.role === 'admin_pertanahan') && (
+            <button
+              type="button"
+              onClick={() => setShowClearConfirm(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+              title="Kosongkan seluruh data surat masuk & disposisi"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              <span>Kosongkan Data</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+              showAdvancedFilters
+                ? 'bg-blue-900 text-white border-blue-900'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filter Lanjutan</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Search & Filter Bar */}
@@ -443,13 +490,23 @@ export const SuratListView: React.FC<SuratListViewProps> = ({
                         </button>
                         <button
                           onClick={() => onSelectSuratForDetail(surat)}
-                          className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                          className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
                         >
                           Detail
                         </button>
+                        {/* Edit Surat oleh Super Admin & Admin Pertanahan */}
+                        {(currentUser.role === 'super_admin' || currentUser.role === 'admin_pertanahan') && (
+                          <button
+                            onClick={() => handleStartEdit(surat)}
+                            className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Data Surat (Live Update)"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => onOpenDisposisiModal(surat)}
-                          className="px-2.5 py-1 text-xs font-bold text-white bg-blue-900 hover:bg-blue-800 rounded-lg transition-colors"
+                          className="px-2.5 py-1 text-xs font-bold text-white bg-blue-900 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer"
                         >
                           {currentUser.role === 'staf_pokja' ? 'Tindak Lanjuti' : 'Disposisikan'}
                         </button>
@@ -554,6 +611,15 @@ export const SuratListView: React.FC<SuratListViewProps> = ({
                     >
                       <QrCode className="w-4 h-4" />
                     </button>
+                    {(currentUser.role === 'super_admin' || currentUser.role === 'admin_pertanahan') && (
+                      <button
+                        onClick={() => handleStartEdit(surat)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Edit Data Surat"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    )}
                     {currentUser.role === 'super_admin' && (
                       <button
                         onClick={() => setSuratToDelete(surat)}
@@ -645,6 +711,66 @@ export const SuratListView: React.FC<SuratListViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* CONFIRMATION MODAL: KOSONGKAN SELURUH DATA SURAT & DISPOSISI */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-rose-300 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-slate-900">
+                  Kosongkan Data Surat & Disposisi
+                </h3>
+                <p className="text-xs text-rose-600 font-semibold">
+                  Aksi Administrator Bidang Pertanahan
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-100 rounded-xl p-3.5 text-xs text-slate-700 space-y-2">
+              <p className="font-medium text-rose-900">
+                Apakah Anda yakin ingin mengosongkan seluruh data surat masuk dan lembar disposisi?
+              </p>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Tindakan ini akan menghapus seluruh rekaman surat masuk, alur disposisi antar pejabat, riwayat pengerjaan staf, serta masukan staf secara permanen baik di perangkat ini maupun di Cloud Firestore real-time.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isClearing}
+                onClick={() => setShowClearConfirm(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isClearing}
+                onClick={handleExecuteClear}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isClearing ? 'Mengosongkan...' : 'Ya, Kosongkan Semua Data'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT SURAT MASUK (Live Update) */}
+      <EditSuratModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSuratToEdit(null);
+        }}
+        surat={suratToEdit}
+      />
     </div>
   );
 };

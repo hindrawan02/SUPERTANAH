@@ -18,6 +18,7 @@ import {
   Folder,
   UploadCloud,
   Image as ImageIcon,
+  Edit3,
 } from 'lucide-react';
 import { formatDateIndo, getStatusBadgeColor } from '../../utils/helpers';
 import { GOOGLE_DRIVE_FOLDER_URL } from '../../data/initialData';
@@ -25,6 +26,8 @@ import { backupSuratToDrive } from '../../services/googleDriveService';
 import { isGoogleConnected, googleSignIn } from '../../services/googleAuthService';
 import { getBlob } from '../../utils/storage';
 import { renderPdfToPageImages } from '../../utils/pdfRenderer';
+import { EditSuratModal } from './EditSuratModal';
+import { EditDisposisiModal } from './EditDisposisiModal';
 
 interface SuratDetailModalProps {
   surat: Surat | null;
@@ -49,6 +52,10 @@ export const SuratDetailModal: React.FC<SuratDetailModalProps> = ({
   const [driveMessage, setDriveMessage] = useState('');
   const [docPreview, setDocPreview] = useState<string | null>(null);
   const [pdfThumbnail, setPdfThumbnail] = useState<string | null>(null);
+
+  // Edit modals state
+  const [isEditSuratOpen, setIsEditSuratOpen] = useState(false);
+  const [disposisiToEdit, setDisposisiToEdit] = useState<Disposisi | null>(null);
 
   useEffect(() => {
     if (!surat?.filePdf) {
@@ -255,6 +262,19 @@ export const SuratDetailModal: React.FC<SuratDetailModalProps> = ({
                 <QrCode className="w-4 h-4 text-slate-700" />
                 <span>QR Code Verifikasi</span>
               </button>
+
+              {/* Edit Surat oleh Super Admin & Admin Pertanahan */}
+              {(currentUser.role === 'super_admin' || currentUser.role === 'admin_pertanahan') && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditSuratOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg font-semibold text-xs transition-colors cursor-pointer"
+                  title="Edit Data Surat Masuk (Sinkronisasi Live Real-Time)"
+                >
+                  <Edit3 className="w-4 h-4 text-blue-700" />
+                  <span>Edit Data Surat</span>
+                </button>
+              )}
 
               {/* Hapus Surat oleh Super Admin (Req 3) */}
               {currentUser.role === 'super_admin' && (
@@ -535,7 +555,20 @@ export const SuratDetailModal: React.FC<SuratDetailModalProps> = ({
                           Prioritas: {disp.prioritas}
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-400">{disp.tanggalDisposisi}</span>
+                      <div className="flex items-center gap-2">
+                        {(currentUser.role === 'super_admin' || currentUser.role === 'admin_pertanahan' || currentUser.id === disp.dariUserId) && (
+                          <button
+                            type="button"
+                            onClick={() => setDisposisiToEdit(disp)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-indigo-900 bg-white hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors shadow-2xs cursor-pointer"
+                            title="Edit Narasi Disposisi"
+                          >
+                            <Edit3 className="w-3 h-3 text-indigo-700" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                        <span className="text-[11px] text-slate-400">{disp.tanggalDisposisi}</span>
+                      </div>
                     </div>
                     <div className="text-slate-600">
                       Pemberi: <strong>{disp.dariUserNama}</strong> ➔ Kepada:{' '}
@@ -571,7 +604,20 @@ export const SuratDetailModal: React.FC<SuratDetailModalProps> = ({
                         Prioritas: {disp.prioritas}
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-400">{disp.tanggalDisposisi}</span>
+                    <div className="flex items-center gap-2">
+                      {(currentUser.role === 'super_admin' || currentUser.role === 'admin_pertanahan' || currentUser.id === disp.dariUserId) && (
+                        <button
+                          type="button"
+                          onClick={() => setDisposisiToEdit(disp)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-900 bg-white hover:bg-blue-100 border border-blue-200 rounded-md transition-colors shadow-2xs cursor-pointer"
+                          title="Edit Narasi Disposisi"
+                        >
+                          <Edit3 className="w-3 h-3 text-blue-700" />
+                          <span>Edit</span>
+                        </button>
+                      )}
+                      <span className="text-[11px] text-slate-400">{disp.tanggalDisposisi}</span>
+                    </div>
                   </div>
                   <div className="text-slate-600">
                     Pemberi: <strong>{disp.dariUserNama}</strong> ➔ Staf Pelaksana:{' '}
@@ -658,12 +704,26 @@ export const SuratDetailModal: React.FC<SuratDetailModalProps> = ({
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-semibold transition-colors"
+            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-semibold transition-colors cursor-pointer"
           >
             Tutup
           </button>
         </div>
       </div>
+
+      {/* Modal Edit Data Surat */}
+      <EditSuratModal
+        isOpen={isEditSuratOpen}
+        onClose={() => setIsEditSuratOpen(false)}
+        surat={surat}
+      />
+
+      {/* Modal Edit Narasi Disposisi */}
+      <EditDisposisiModal
+        isOpen={!!disposisiToEdit}
+        onClose={() => setDisposisiToEdit(null)}
+        disposisi={disposisiToEdit}
+      />
     </div>
   );
 };

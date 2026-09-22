@@ -172,6 +172,55 @@ export async function saveDisposisiToFirestore(disposisi: Disposisi): Promise<vo
   }
 }
 
+export async function deleteDisposisiFromFirestore(id: string): Promise<void> {
+  const path = `disposisi/${id}`;
+  try {
+    await deleteDoc(doc(db, 'disposisi', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+/**
+ * Mengosongkan seluruh data surat masuk, disposisi, tindak lanjut, dan masukan staf dari Firestore
+ */
+export async function clearSuratAndDisposisiFromFirestore(): Promise<void> {
+  const collectionsToClear = ['surat', 'disposisi', 'tindak_lanjut', 'masukan_staf'];
+  for (const colName of collectionsToClear) {
+    try {
+      const snap = await getDocs(collection(db, colName));
+      const deletePromises = snap.docs.map((docSnap) => deleteDoc(doc(db, colName, docSnap.id)));
+      await Promise.all(deletePromises);
+      console.log(`[Firestore] Koleksi ${colName} berhasil dikosongkan (${snap.docs.length} dokumen terhapus).`);
+    } catch (err) {
+      console.warn(`[Firestore] Gagal mengosongkan koleksi ${colName}:`, err);
+    }
+  }
+}
+
+/**
+ * Menghapus data demo/dummy lama jika masih tersimpan di Firestore
+ */
+export async function purgeLegacyDummyData(): Promise<void> {
+  const dummySuratIds = ['surat-1', 'surat-2', 'surat-3', 'surat-4', 'surat-5'];
+  const dummyDispIds = ['disp-1', 'disp-2', 'disp-3', 'disp-4', 'disp-5', 'disp-6', 'disp-staf-1', 'disp-staf-2', 'disp-staf-3'];
+  const dummyTlIds = ['tl-1'];
+  const dummyMasukanIds = ['masukan-1', 'masukan-2'];
+
+  for (const id of dummySuratIds) {
+    try { await deleteDoc(doc(db, 'surat', id)); } catch (_) {}
+  }
+  for (const id of dummyDispIds) {
+    try { await deleteDoc(doc(db, 'disposisi', id)); } catch (_) {}
+  }
+  for (const id of dummyTlIds) {
+    try { await deleteDoc(doc(db, 'tindak_lanjut', id)); } catch (_) {}
+  }
+  for (const id of dummyMasukanIds) {
+    try { await deleteDoc(doc(db, 'masukan_staf', id)); } catch (_) {}
+  }
+}
+
 export async function saveTindakLanjutToFirestore(tl: TindakLanjut): Promise<void> {
   const path = `tindak_lanjut/${tl.id}`;
   try {
@@ -257,11 +306,14 @@ export async function seedFirestoreIfEmpty(seedData: {
   notifikasi: Notifikasi[];
 }): Promise<boolean> {
   try {
-    // Check if 'surat' has documents
-    const q = query(collection(db, 'surat'), limit(1));
+    // Purge legacy dummy demo data if any exists in Firestore
+    await purgeLegacyDummyData();
+
+    // Check if 'users' has documents
+    const q = query(collection(db, 'users'), limit(1));
     const snap = await getDocs(q);
     if (!snap.empty) {
-      console.log('ℹ️ Firestore sudah berisi data aktif.');
+      console.log('ℹ️ Firestore users sudah terisi aktif.');
       return false;
     }
 
@@ -279,39 +331,14 @@ export async function seedFirestoreIfEmpty(seedData: {
       await setDoc(doc(db, 'users', u.id), sanitizeDoc(u), { merge: true });
     }
 
-    // Seed surat
-    for (const s of seedData.surat) {
-      await setDoc(doc(db, 'surat', s.id), sanitizeDoc(s), { merge: true });
-    }
-
     // Seed surat keluar
     for (const sk of seedData.suratKeluar) {
       await setDoc(doc(db, 'surat_keluar', sk.id), sanitizeDoc(sk), { merge: true });
     }
 
-    // Seed disposisi
-    for (const d of seedData.disposisi) {
-      await setDoc(doc(db, 'disposisi', d.id), sanitizeDoc(d), { merge: true });
-    }
-
-    // Seed tindak lanjut
-    for (const tl of seedData.tindakLanjut) {
-      await setDoc(doc(db, 'tindak_lanjut', tl.id), sanitizeDoc(tl), { merge: true });
-    }
-
-    // Seed masukan staf
-    for (const ms of seedData.masukanStaf) {
-      await setDoc(doc(db, 'masukan_staf', ms.id), sanitizeDoc(ms), { merge: true });
-    }
-
     // Seed logs
     for (const l of seedData.logs) {
       await setDoc(doc(db, 'logs', l.id), sanitizeDoc(l), { merge: true });
-    }
-
-    // Seed notifikasi
-    for (const n of seedData.notifikasi) {
-      await setDoc(doc(db, 'notifikasi', n.id), sanitizeDoc(n), { merge: true });
     }
 
     console.log('✅ Inisialisasi awal Firestore Cloud selesai secara real-time!');

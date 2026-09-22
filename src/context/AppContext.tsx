@@ -46,6 +46,8 @@ import {
   saveSuratKeluarToFirestore,
   deleteSuratKeluarFromFirestore,
   saveDisposisiToFirestore,
+  deleteDisposisiFromFirestore,
+  clearSuratAndDisposisiFromFirestore,
   saveTindakLanjutToFirestore,
   saveMasukanStafToFirestore,
   saveUserToFirestore,
@@ -174,6 +176,10 @@ interface AppContextType {
   ) => void;
   arsipkanSurat: (suratId: string, catatanArsip: string) => void;
   deleteSurat: (suratId: string) => void;
+  editSurat: (suratId: string, updatedData: Partial<Surat>) => Promise<Surat | null>;
+  editDisposisi: (disposisiId: string, updatedData: Partial<Disposisi>) => Promise<Disposisi | null>;
+  deleteDisposisi: (disposisiId: string) => Promise<boolean>;
+  clearAllSuratAndDisposisi: () => Promise<void>;
   updateSuratPdf: (suratId: string, filePdf: string, fileName: string, fileSize: string) => void;
   // User Management
   addUser: (user: Omit<User, 'id'>) => void;
@@ -273,16 +279,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_POKJA;
   });
 
+  const isLegacyDummySurat = (id: string) => ['surat-1', 'surat-2', 'surat-3', 'surat-4', 'surat-5'].includes(id);
+  const isLegacyDummyDisp = (id: string) =>
+    ['disp-1', 'disp-2', 'disp-3', 'disp-4', 'disp-5', 'disp-6', 'disp-staf-1', 'disp-staf-2', 'disp-staf-3'].includes(id);
+
   const [suratList, setSuratList] = useState<Surat[]>(() => {
     const saved = safeGetItem(STORAGE_KEYS.SURAT);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map((s) => ({
-            ...s,
-            assignedPokjaIds: Array.isArray(s.assignedPokjaIds) ? s.assignedPokjaIds : [],
-          }));
+          return parsed
+            .filter((s) => s && !isLegacyDummySurat(s.id))
+            .map((s) => ({
+              ...s,
+              assignedPokjaIds: Array.isArray(s.assignedPokjaIds) ? s.assignedPokjaIds : [],
+            }));
         }
       } catch (e) {
         console.error('Failed to parse saved surat list:', e);
@@ -312,13 +324,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map((d) => ({
-            ...d,
-            dariNama: d.dariNama || d.dariUserNama || '',
-            kepadaNama: d.kepadaNama || d.kepadaUserNama || '',
-            dariUserNama: d.dariUserNama || d.dariNama || '',
-            kepadaUserNama: d.kepadaUserNama || d.kepadaNama || '',
-          }));
+          return parsed
+            .filter((d) => d && !isLegacyDummyDisp(d.id))
+            .map((d) => ({
+              ...d,
+              dariNama: d.dariNama || d.dariUserNama || '',
+              kepadaNama: d.kepadaNama || d.kepadaUserNama || '',
+              dariUserNama: d.dariUserNama || d.dariNama || '',
+              kepadaUserNama: d.kepadaUserNama || d.kepadaNama || '',
+            }));
         }
       } catch (e) {
         console.error('Failed to parse saved disposisi list:', e);
@@ -329,7 +343,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [tindakLanjutList, setTindakLanjutList] = useState<TindakLanjut[]>(() => {
     const saved = safeGetItem(STORAGE_KEYS.TINDAK_LANJUT);
-    return saved ? JSON.parse(saved) : INITIAL_TINDAK_LANJUT;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((t) => t && t.id !== 'tl-1');
+        }
+      } catch (e) {}
+    }
+    return INITIAL_TINDAK_LANJUT;
   });
 
   const [logs, setLogs] = useState<LogAktivitas[]>(() => {
@@ -344,7 +366,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [masukanStafList, setMasukanStafList] = useState<MasukanStaf[]>(() => {
     const saved = safeGetItem(STORAGE_KEYS.MASUKAN_STAF);
-    return saved ? JSON.parse(saved) : INITIAL_MASUKAN_STAF;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((m) => m && !['masukan-1', 'masukan-2'].includes(m.id));
+        }
+      } catch (e) {}
+    }
+    return INITIAL_MASUKAN_STAF;
   });
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -411,74 +441,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 2. Listener Real-Time Firestore (onSnapshot)
     const unsubPokjas = subscribeToCollection<Pokja>('pokjas', (items) => {
-      if (!isMounted || !items || items.length === 0) return;
-      setIsCloudSyncActive(true);
-      setPokjas(items);
+      if (!isMounted || !items) return;
+      if (items.length > 0) {
+        setIsCloudSyncActive(true);
+        setPokjas(items);
+      }
     });
+
     const unsubSurat = subscribeToCollection<Surat>('surat', (items) => {
-      if (!isMounted || !items || items.length === 0) return;
+      if (!isMounted || !items) return;
       setIsCloudSyncActive(true);
       setLastSyncTime(new Date().toLocaleTimeString('id-ID'));
+      const validItems = items.filter((s) => s && !isLegacyDummySurat(s.id));
       setSuratList((prev) => {
-        const map = new Map<string, Surat>();
-        items.forEach((item) => map.set(item.id, item));
-        prev.forEach((oldItem) => {
-          if (map.has(oldItem.id)) {
-            const newItem = map.get(oldItem.id)!;
-            if (oldItem.filePdf && (!newItem.filePdf || newItem.filePdf.startsWith('idb:'))) {
-              newItem.filePdf = oldItem.filePdf;
-            }
-          } else {
-            map.set(oldItem.id, oldItem);
+        return validItems.map((item) => {
+          const old = prev.find((p) => p.id === item.id);
+          if (old?.filePdf && (!item.filePdf || item.filePdf.startsWith('idb:'))) {
+            return { ...item, filePdf: old.filePdf };
           }
-        });
-        return Array.from(map.values()).sort((a, b) => b.id.localeCompare(a.id));
+          return item;
+        }).sort((a, b) => b.id.localeCompare(a.id));
       });
     });
 
     const unsubSuratKeluar = subscribeToCollection<SuratKeluar>('surat_keluar', (items) => {
-      if (!isMounted || !items || items.length === 0) return;
+      if (!isMounted || !items) return;
       setIsCloudSyncActive(true);
       setLastSyncTime(new Date().toLocaleTimeString('id-ID'));
-      setSuratKeluarList((prev) => {
-        const map = new Map<string, SuratKeluar>();
-        items.forEach((item) => map.set(item.id, item));
-        prev.forEach((oldItem) => {
-          if (map.has(oldItem.id)) {
-            const newItem = map.get(oldItem.id)!;
-            if (oldItem.filePdf && (!newItem.filePdf || newItem.filePdf.startsWith('idb:'))) {
-              newItem.filePdf = oldItem.filePdf;
-            }
-          } else {
-            map.set(oldItem.id, oldItem);
-          }
-        });
-        return Array.from(map.values()).sort((a, b) => (b.nomorUrut || 0) - (a.nomorUrut || 0));
-      });
+      setSuratKeluarList(items.sort((a, b) => (b.nomorUrut || 0) - (a.nomorUrut || 0)));
     });
 
     const unsubDisposisi = subscribeToCollection<Disposisi>('disposisi', (items) => {
-      if (!isMounted || !items || items.length === 0) return;
+      if (!isMounted || !items) return;
       setIsCloudSyncActive(true);
-      setDisposisiList(items);
+      const validItems = items.filter((d) => d && !isLegacyDummyDisp(d.id));
+      setDisposisiList(validItems.sort((a, b) => b.id.localeCompare(a.id)));
     });
 
     const unsubTindakLanjut = subscribeToCollection<TindakLanjut>('tindak_lanjut', (items) => {
-      if (!isMounted || !items || items.length === 0) return;
+      if (!isMounted || !items) return;
       setIsCloudSyncActive(true);
-      setTindakLanjutList(items);
+      setTindakLanjutList(items.filter((t) => t && t.id !== 'tl-1'));
     });
 
     const unsubMasukanStaf = subscribeToCollection<MasukanStaf>('masukan_staf', (items) => {
-      if (!isMounted || !items || items.length === 0) return;
+      if (!isMounted || !items) return;
       setIsCloudSyncActive(true);
-      setMasukanStafList(items);
+      setMasukanStafList(items.filter((m) => m && !['masukan-1', 'masukan-2'].includes(m.id)));
     });
 
     const unsubUsers = subscribeToCollection<User>('users', (items) => {
-      if (!isMounted || !items || items.length === 0) return;
-      setIsCloudSyncActive(true);
-      setUsers(items);
+      if (!isMounted || !items) return;
+      if (items.length > 0) {
+        setIsCloudSyncActive(true);
+        setUsers(items);
+      }
     });
 
     const unsubLogs = subscribeToCollection<LogAktivitas>('logs', (items) => {
@@ -1303,6 +1320,115 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  // ACTION: Edit Data Surat Masuk (Super Admin & Admin Pertanahan)
+  const editSurat = async (suratId: string, updatedData: Partial<Surat>): Promise<Surat | null> => {
+    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const target = suratList.find((s) => s.id === suratId);
+    if (!target) return null;
+
+    const updatedSuratObj: Surat = {
+      ...target,
+      ...updatedData,
+      updatedAt: timestamp,
+    };
+
+    // Update local state immediately
+    setSuratList((prev) =>
+      prev.map((s) => (s.id === suratId ? updatedSuratObj : s))
+    );
+
+    // Save to Firestore for live sync to all other users
+    try {
+      await saveSuratToFirestore(updatedSuratObj);
+    } catch (e) {
+      console.warn('Gagal menyimpan pembaruan surat ke Firestore:', e);
+    }
+
+    addLog(
+      suratId,
+      'Edit Data Surat Masuk',
+      `Surat No. ${updatedSuratObj.nomorSurat} (${updatedSuratObj.nomorAgenda}) berhasil diedit oleh ${currentUser.nama}.`
+    );
+
+    return updatedSuratObj;
+  };
+
+  // ACTION: Edit Lembar Disposisi (Admin & Pimpinan)
+  const editDisposisi = async (disposisiId: string, updatedData: Partial<Disposisi>): Promise<Disposisi | null> => {
+    const target = disposisiList.find((d) => d.id === disposisiId);
+    if (!target) return null;
+
+    const updatedDispObj: Disposisi = {
+      ...target,
+      ...updatedData,
+    };
+
+    // Update local state immediately
+    setDisposisiList((prev) =>
+      prev.map((d) => (d.id === disposisiId ? updatedDispObj : d))
+    );
+
+    // Save to Firestore for live sync
+    try {
+      await saveDisposisiToFirestore(updatedDispObj);
+    } catch (e) {
+      console.warn('Gagal menyimpan pembaruan disposisi ke Firestore:', e);
+    }
+
+    addLog(
+      updatedDispObj.suratId,
+      'Edit Lembar Disposisi',
+      `Disposisi untuk ${updatedDispObj.kepadaNama || updatedDispObj.kepadaUserNama} diedit oleh ${currentUser.nama}. Instruksi: "${updatedDispObj.narasi}"`
+    );
+
+    return updatedDispObj;
+  };
+
+  // ACTION: Hapus Lembar Disposisi (Admin & Pimpinan)
+  const deleteDisposisi = async (disposisiId: string): Promise<boolean> => {
+    const target = disposisiList.find((d) => d.id === disposisiId);
+    if (!target) return false;
+
+    setDisposisiList((prev) => prev.filter((d) => d.id !== disposisiId));
+    try {
+      await deleteDisposisiFromFirestore(disposisiId);
+    } catch (e) {
+      console.warn('Gagal menghapus disposisi dari Firestore:', e);
+    }
+
+    addLog(
+      target.suratId,
+      'Hapus Lembar Disposisi',
+      `Disposisi untuk ${target.kepadaNama || target.kepadaUserNama} dihapus oleh ${currentUser.nama}.`
+    );
+
+    return true;
+  };
+
+  // ACTION: Kosongkan Seluruh Data Surat Masuk & Disposisi
+  const clearAllSuratAndDisposisi = async (): Promise<void> => {
+    setSuratList([]);
+    setDisposisiList([]);
+    setTindakLanjutList([]);
+    setMasukanStafList([]);
+    safeSetItem(STORAGE_KEYS.SURAT, JSON.stringify([]));
+    safeSetItem(STORAGE_KEYS.DISPOSISI, JSON.stringify([]));
+    safeSetItem(STORAGE_KEYS.TINDAK_LANJUT, JSON.stringify([]));
+    safeSetItem(STORAGE_KEYS.MASUKAN_STAF, JSON.stringify([]));
+
+    try {
+      await clearSuratAndDisposisiFromFirestore();
+    } catch (e) {
+      console.warn('Gagal mengosongkan Firestore surat & disposisi:', e);
+    }
+
+    addLog(
+      undefined,
+      'Kosongkan Surat Masuk & Disposisi',
+      `Seluruh data surat masuk dan lembar disposisi telah dikosongkan oleh ${currentUser.nama}.`
+    );
+  };
+
   // ACTION: Update / Ganti Berkas PDF Dokumen Asli Surat (Super Admin & Admin)
   const updateSuratPdf = (suratId: string, filePdf: string, fileName: string, fileSize: string) => {
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
@@ -1680,6 +1806,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tanggapiMasukanStaf,
         arsipkanSurat,
         deleteSurat,
+        editSurat,
+        editDisposisi,
+        deleteDisposisi,
+        clearAllSuratAndDisposisi,
         updateSuratPdf,
         addUser,
         updateUser,
